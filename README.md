@@ -43,10 +43,46 @@ The instructions in [SKILL.md](SKILL.md) cover finding, reading, creating, and u
 
 Use a dedicated agent vault containing only the credentials the agent needs, and keep backups before allowing writes. `generate` can replace an existing password and prints it unless `--quiet` is used. Default entry views and XML exports can also expose secrets to tool logs; clipboard access requires a working local GUI and is not a headless secret-delivery mechanism.
 
-The skill defaults to targeted searches and field reads, uses `--non-interactive` and `generate --quiet` for unattended execution, and requires authorization for destructive operations. Interactive editing still requires a suitable local session. Review [SKILL.md](SKILL.md) before granting vault access.
+The skill instructs the agent to use targeted searches and field reads, use `--non-interactive` and `generate --quiet` for unattended execution, and seek authorization for destructive operations. These are instructions, not enforced access controls. Interactive editing still requires a suitable local session. Review [SKILL.md](SKILL.md) before granting vault access.
 
 Never commit vaults, passwords, password files, or keyfiles. Only authorize deletion or vault credential changes when intended.
 
 ## License
 
 [MIT](LICENSE), copyright 2026 Lanjelin. See the upstream kpass repository for its own licensing and documentation.
+
+## Security disclaimer
+
+**An agent with vault access can use—or leak—everything it can unlock.** KDBX encryption protects the vault at rest; it does not constrain OpenClaw after you provide the unlock credentials. The skill's safety rules guide the agent, but **they are instructions, not access controls**.
+
+### Main risks
+
+| Risk | What it means here |
+| --- | --- |
+| **Secrets enter model context or logs** | `show -p`, OTP output, default entry views, and XML exports can expose secrets through tool results, session history, or logging. Depending on your configuration, they may also reach the model provider. |
+| **Prompt injection** | A malicious webpage, message, document, or vault note could persuade the agent to retrieve credentials, send them elsewhere, or alter the vault. Skill instructions cannot reliably prevent this alone. |
+| **Whole-vault access** | Giving the execution process the database and unlock credentials effectively grants access to the entire vault—not just the entry the user requested. |
+| **Credential exposure on the host** | Unlock passwords in environment variables or password files remain accessible to sufficiently privileged processes. A password file readable by the agent is not a security boundary against that agent. |
+| **Unwanted mutations** | An agent can overwrite passwords, delete entries, or change vault credentials. Requests for authorization in the skill are not enforced by kpass. |
+| **Plaintext handling** | Interactive editing creates a temporary plaintext file. Clipboards and clipboard managers can retain copied secrets. Neither is an appropriate default for a headless agent. |
+| **Shared execution environments** | Agents or users sharing the same OS identity, credentials, and execution environment should not be treated as securely isolated from each other. |
+
+`--non-interactive` prevents prompts; **it does not restrict permissions**. `generate --quiet` avoids one source of secret output; **it does not make other commands secret-safe**.
+
+### Recommended setup
+
+1. **Use a dedicated agent vault.** Never give it your personal password database. Include only credentials you are willing to expose to that agent's execution environment.
+
+2. **Prefer narrowly scoped, revocable credentials.** Use service-specific tokens, limited permissions, and short lifetimes where supported. Avoid primary account passwords, recovery codes, and administrative credentials.
+
+3. **Enforce access outside the skill.** Use a dedicated OS user or sandbox with access only to the intended vault and credential files. Restrict network destinations and command capabilities where practical. OpenClaw's skill dependency check does not grant or limit those permissions.
+
+4. **Keep secret values out of model-visible tool output.** Ideally, an approved helper retrieves a credential and uses it directly for a specific operation, returning only the result—not the credential. This skill does **not** implement such a broker.
+
+5. **Restrict writes unless needed.** Use filesystem permissions or a constrained execution interface for read-only workflows. Keep protected, versioned backups outside the agent's write access.
+
+6. **Review logging and transcript retention.** Prevent secret output from being captured in the first place; redacting it after it has reached a session transcript is too late.
+
+**Storing a password and its TOTP seed in the same agent-accessible vault removes their separation against compromise of that agent.**
+
+This setup is suitable for a dedicated automation vault containing limited, replaceable credentials—not unrestricted access to a personal or administrative vault.
